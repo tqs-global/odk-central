@@ -1,0 +1,239 @@
+import { T } from 'ramda';
+
+import DateTime from '../../../src/components/date-time.vue';
+import DlData from '../../../src/components/dl-data.vue';
+import GeojsonMap from '../../../src/components/geojson-map.vue';
+import SubmissionDelete from '../../../src/components/submission/delete.vue';
+import SubmissionMapPopup from '../../../src/components/submission/map-popup.vue';
+import SubmissionUpdateReviewState from '../../../src/components/submission/update-review-state.vue';
+
+import useFields from '../../../src/request-data/fields';
+
+import testData from '../../data';
+import { load, mockHttp } from '../../util/http';
+import { mergeMountOptions } from '../../util/lifecycle';
+import { mockLogin } from '../../util/session';
+import { mockRouter } from '../../util/router';
+import { testRequestData } from '../../util/request-data';
+
+const mountOptions = (options = undefined) => {
+  const project = testData.extendedProjects.last();
+  const projectId = project.id.toString();
+  const form = testData.extendedForms.last();
+  const { xmlFormId } = form;
+  const { instanceId } = testData.extendedSubmissions.last();
+  return mergeMountOptions(options, {
+    props: { projectId, xmlFormId, instanceId, fieldpath: '/p1' },
+    container: {
+      router: mockRouter(`/projects/${projectId}/forms/${encodeURIComponent(xmlFormId)}/submissions?map=true`),
+      requestData: testRequestData([useFields], {
+        project,
+        form,
+        fields: form._fields
+      })
+    }
+  });
+};
+
+describe('SubmissionMapPopup', () => {
+  beforeEach(() => {
+    mockLogin({ displayName: 'Allison' });
+    testData.extendedForms.createPast(1, {
+      xmlFormId: 'a b',
+      fields: [
+        testData.fields.group('/names'),
+        testData.fields.string('/names/first_name'),
+        testData.fields.geopoint('/p1'),
+        testData.fields.geopoint('/p2')
+      ],
+      submissions: 1
+    });
+    testData.extendedSubmissions.createPast(1, {
+      instanceId: 'c d',
+      names: { first_name: 'Someone' },
+      p1: 'POINT (1 1)',
+      p2: 'POINT (2 2)'
+    });
+  });
+
+  it('does nothing if instanceId is not defined', () =>
+    mockHttp()
+      .mount(SubmissionMapPopup, mountOptions({
+        props: { instanceId: null, fieldpath: null }
+      }))
+      .testNoRequest()
+      .afterResponses(component => {
+        component.should.be.hidden();
+      }));
+
+  it('sends the correct request', () =>
+    mockHttp()
+      .mount(SubmissionMapPopup, mountOptions())
+      .respondWithData(testData.submissionOData)
+      .testRequests([{
+        url: "/v1/projects/1/forms/a%20b.svc/Submissions('c%20d')?%24wkt=true"
+      }]));
+
+  it('shows submission metadata', () =>
+    mockHttp()
+      .mount(SubmissionMapPopup, mountOptions())
+      .respondWithData(testData.submissionOData)
+      .afterResponse(async (component) => {
+        const dd = component.findAll('dd');
+        dd[0].text().should.equal('Allison');
+        await dd[0].should.have.textTooltip();
+
+        const { createdAt } = testData.extendedSubmissions.last();
+        dd[1].getComponent(DateTime).props().iso.should.equal(createdAt);
+      }));
+
+  it('shows form-field data, ordering the geo field first', () =>
+    mockHttp()
+      .mount(SubmissionMapPopup, mountOptions())
+      .respondWithData(testData.submissionOData)
+      .afterResponse(async (component) => {
+        const pairs = component.findAllComponents(DlData);
+        const names = pairs.map(pair => pair.get('dt').text());
+        names.should.eql(['p1', 'first_name', 'p2']);
+
+        const values = pairs.map(pair => pair.props().value);
+        values.should.eql(['POINT (1 1)', 'Someone', 'POINT (2 2)']);
+      }));
+
+  it('shows tooltips for form-field data', () =>
+    mockHttp()
+      .mount(SubmissionMapPopup, mountOptions())
+      .respondWithData(testData.submissionOData)
+      .afterResponse(async (component) => {
+        const pair = component.findAllComponents(DlData)[1];
+        const name = pair.get('dt span');
+        name.text().should.equal('first_name');
+        await name.should.have.tooltip('names-first_name');
+        pair.get('dd').should.have.textTooltip();
+      }));
+
+  it('shows a warning if geo field is not in current version of form', () =>
+    mockHttp()
+      .mount(SubmissionMapPopup, mountOptions({
+        props: { fieldpath: '/old_group/old_field' }
+      }))
+      .respondWithData(testData.submissionOData)
+      .afterResponse(async (component) => {
+        const warning = component.get('dl + div');
+        warning.find('.icon-warning').exists().should.be.true;
+        const field = warning.get('strong');
+        field.text().should.equal('old_field');
+        await field.should.have.tooltip('old_group-old_field');
+
+        // The fields that actually are in the current version of the form
+        // should be shown in form order.
+        const names = component.findAllComponents(DlData)
+          .map(pair => pair.get('dt').text());
+        names.should.eql(['first_name', 'p1', 'p2']);
+      }));
+
+  it('updates after the instanceId changes', () =>
+    mockHttp()
+      .mount(SubmissionMapPopup, mountOptions())
+      .respondWithData(testData.submissionOData)
+      .complete()
+      .request(component => {
+        testData.extendedSubmissions.createNew({
+          instanceId: 'another',
+          p1: 'POINT (3 3)'
+        });
+        return component.setProps({ instanceId: 'another' });
+      })
+      .respondWithData(() => testData.submissionOData(1))
+      .testRequests([{
+        url: ({ pathname }) => {
+          pathname.should.contain('another');
+        }
+      }])
+      .afterResponse(component => {
+        const pair = component.getComponent(DlData);
+        pair.get('dt').text().should.equal('p1');
+        pair.props().value.should.equal('POINT (3 3)');
+      }));
+
+  describe('review button', () => {
+    const review = (confirm = true) => load('/projects/1/forms/a%20b/submissions?map=true')
+      .complete()
+      .request(app => {
+        app.getComponent(GeojsonMap).vm.selectFeature('c d');
+      })
+      .respondWithData(testData.submissionOData)
+      .complete()
+      .request(async (app) => {
+        await app.get('#submission-map-popup .review-button').trigger('click');
+        if (confirm) {
+          await app.get('#submission-update-review-state input[value="approved"]').setChecked();
+          await app.get('#submission-update-review-state form').trigger('submit');
+        }
+      })
+      .respondIf(T, () => {
+        testData.extendedSubmissions.update(-1, { reviewState: 'approved' });
+        return testData.standardSubmissions.last();
+      });
+
+    it('shows the modal', async () => {
+      const app = await review(false);
+      app.getComponent(SubmissionUpdateReviewState).props().state.should.be.true;
+    });
+
+    it('sends the correct request', () =>
+      review().testRequests([{
+        method: 'PATCH',
+        url: '/v1/projects/1/forms/a%20b/submissions/c%20d',
+        data: { reviewState: 'approved' }
+      }]));
+
+    it('updates the review state', async () => {
+      const app = await review();
+      await app.get('#submission-map-popup .review-button').trigger('click');
+      const input = app.get('#submission-update-review-state input[value="approved"]');
+      input.element.checked.should.be.true;
+    });
+  });
+
+  describe('delete button', () => {
+    const del = (confirm = true) => load('/projects/1/forms/a%20b/submissions?map=true')
+      .complete()
+      .request(app => {
+        app.getComponent(GeojsonMap).vm.selectFeature('c d');
+      })
+      .respondWithData(testData.submissionOData)
+      .complete()
+      .request(async (app) => {
+        await app.get('#submission-map-popup .delete-button').trigger('click');
+        if (confirm)
+          await app.get('#submission-delete .btn-danger').trigger('click');
+      })
+      .respondIf(T, () => ({ success: true }));
+
+    it('shows the modal', async () => {
+      const app = await del(false);
+      app.getComponent(SubmissionDelete).props().state.should.be.true;
+    });
+
+    it('sends the correct request', () =>
+      del().testRequests([{
+        method: 'DELETE',
+        url: '/v1/projects/1/forms/a%20b/submissions/c%20d'
+      }]));
+
+    it('removes the feature from the map', () =>
+      del()
+        .beforeAnyResponse(app => {
+          app.getComponent(GeojsonMap).vm.getFeatures().length.should.equal(1);
+        })
+        .afterResponse(app => {
+          app.getComponent(GeojsonMap).vm.getFeatures().length.should.equal(0);
+        }));
+
+    it('hides the popup', async () => {
+      const app = await del();
+      app.getComponent(SubmissionMapPopup).should.be.hidden();
+    });
+  });
+});

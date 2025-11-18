@@ -32,7 +32,8 @@ assert_size /etc/secrets/enketo-api-key     128
 CONFIG_PATH=${ENKETO_SRC_DIR}/config/config.json
 log "Generating enketo configuration..."
 
-BASE_URL=$( [ "${HTTPS_PORT}" = 443 ] && echo https://"${DOMAIN}" || echo https://"${DOMAIN}":"${HTTPS_PORT}" ) \
+OPENROSA_URL="${OPENROSA_URL:-http://odk-nginx}" \
+BASE_URL="${BASE_URL_INTERNAL:-$([ "${HTTPS_PORT}" = 443 ] && echo https://"${DOMAIN}" || echo https://"${DOMAIN}":"${HTTPS_PORT}")}" \
 SECRET=$(cat /etc/secrets/enketo-secret) \
 LESS_SECRET=$(cat /etc/secrets/enketo-less-secret) \
 API_KEY=$(cat /etc/secrets/enketo-api-key) \

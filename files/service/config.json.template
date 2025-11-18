@@ -31,6 +31,7 @@
     },
     "env": {
       "domain": "${BASE_URL}",
+      "internalDomain": "${INTERNAL_BASE_URL}",
       "sysadminAccount": "${SYSADMIN_EMAIL}"
     },
     "oidc": {

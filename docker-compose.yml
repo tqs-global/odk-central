@@ -133,6 +133,7 @@ services:
       - DOMAIN=${DOMAIN}
       - SUPPORT_EMAIL=${SYSADMIN_EMAIL}
       - HTTPS_PORT=${HTTPS_PORT:-443}
+      - BASE_URL_INTERNAL=http://odk-nginx
   enketo_redis_main:
     image: redis:7.4.2
     volumes:

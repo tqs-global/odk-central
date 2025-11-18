@@ -8,10 +8,11 @@
         "api key": "${API_KEY}",
         "authentication": {
             "type": "cookie",
-            "url": "${BASE_URL}/login?next={RETURNURL}"
+            "url": "${BASE_URL}/login?next={RETURNURL}",
+            "allow insecure transport": "true"
         },
         "name": "ODK Central",
-        "server url": "${DOMAIN}"
+        "server url": "${OPENROSA_URL}"
     },
     "logo": {
         "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",

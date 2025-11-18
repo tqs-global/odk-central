@@ -88,7 +88,14 @@ const { project, resourceStates, form } = useRequestData();
 const { t } = useI18n();
 const { ensureEnketoOfflinePath, ensureCanonicalPath } = useEnketoRedirector();
 
-const resources = computed(() => (props.projectId ? [project, form] : [form]));
+const resources = computed(() => {
+  const isNewLike =
+    route.name === 'SubmissionNew' ||
+    route.name === 'DraftSubmissionNew' ||
+    props.actionType === 'offline' ||
+    props.actionType === 'new';
+  return isNewLike ? [form] : (props.projectId ? [project, form] : [form]);
+});
 
 const loadingState = ref(true);
 const hideLoading = () => {
@@ -137,24 +144,18 @@ const fetchForm = () => {
 };
 
 const hasAccess = computed(() => {
-  if (!project.dataExists || !form.dataExists) return true;
+  if (!form.dataExists) return true;
 
-  let result = true;
+  // Editing still requires project-level permissions.
+  if (route.name === 'SubmissionEdit') {
+    if (!project.dataExists) return false;
+    return project.permits(['submission.read', 'submission.update']);
+  }
 
-  if ((route.name === 'SubmissionNew' || route.name === 'DraftSubmissionNew') &&
-      !project.permits('submission.create'))
-    result = false;
+  // New/offline: rely on form state; backend enforces submission.create on POST.
+  if (!props.draft && form.state !== 'open') return false;
 
-  if (route.name === 'SubmissionEdit' && !project.permits(['submission.read', 'submission.update']))
-    result = false;
-
-  if (!project.permits('form.read') && !project.permits('open_form.read'))
-    result = false;
-
-  if (!project.permits('form.read') && project.permits('open_form.read') && form.state !== 'open')
-    result = false;
-
-  return result;
+  return true;
 });
 
 watch(() => initiallyLoading.value, (value) => {
@@ -169,8 +170,16 @@ watchEffect(() => {
   }
 });
 
-// Required to check permissions in hasAccess
-if (props.projectId) fetchProject();
+// Remove unconditional project fetch to avoid 403 alert on “new” routes.
+// Previously:
+// if (props.projectId) fetchProject();
+
+// Only fetch project for edit routes to evaluate edit permissions.
+const shouldFetchProject =
+  route.name === 'SubmissionEdit' && props.projectId;
+if (shouldFetchProject) {
+  fetchProject();
+}
 
 if (!form.dataExists) fetchForm();
 </script>

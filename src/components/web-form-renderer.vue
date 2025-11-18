@@ -252,17 +252,27 @@ const closeWindow = () => {
  * Response is subset of web standard  {@link Response}.
  */
 const getAttachment = (url) => {
+  // Avoid double-encoding: OWF’s URL pathname is already percent-encoded.
+  const lastSegment = url.pathname.substring(url.pathname.lastIndexOf('/') + 1);
+  const attachmentName = decodeURIComponent(lastSegment);
+
   const requestUrl = withToken(apiPaths.formAttachment(
     form.projectId,
     form.xmlFormId,
     !form.publishedAt,
-    url.pathname.split('/').pop()
+    attachmentName
   ));
   return request({
     url: requestUrl,
     alert: false,
     responseType: 'blob', // Handle all file types for attachments.
-  }).then(transformAttachmentResponse);
+  })
+    .then(transformAttachmentResponse)
+    .catch((error) => {
+      const res = error?.response;
+      if (res != null) return transformAttachmentResponse(res);
+      return new Response('', { status: 500, statusText: 'Form attachment fetch failed' });
+    });
 };
 
 const postPrimaryInstance = async (file) => {

@@ -17,7 +17,7 @@ fi
 # it's self-signed and won't expire for 1,000 years.
 mkdir -p /etc/nginx/ssl
 openssl req -x509 -nodes -newkey rsa:2048 \
-    -subj "/" \
+    -subj "/CN=invalid.local" \
     -keyout /etc/nginx/ssl/nginx.default.key \
     -out    /etc/nginx/ssl/nginx.default.crt \
     -days 365000
@@ -63,7 +63,7 @@ else
     echo "starting nginx for upstream ssl..."
   else
     # remove letsencrypt challenge reply, but keep 80 to 443 redirection
-    perl -i -ne 'print if $. < 7 || $. > 14' /etc/nginx/conf.d/redirector.conf
+    perl -i -ne 'print if $. < 9 || $. > 16' /etc/nginx/conf.d/redirector.conf
     echo "starting nginx for custom ssl and self-signed certs..."
   fi
   exec nginx -g "daemon off;"

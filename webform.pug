@@ -1,0 +1,68 @@
+extends ../layout
+
+block head-script
+  script
+    include component/redirect-IE.js
+
+block style
+  // preload for performance
+  link(rel='preload', as='font', href=`${basePath}${offlinePath || ''}/fonts/OpenSans-Bold-webfont.woff`, type='font/woff', crossorigin)
+  link(rel='preload', as='font', href=`${basePath}${offlinePath || ''}/fonts/OpenSans-Regular-webfont.woff`, type='font/woff', crossorigin)
+  link(rel='preload', as='font', href=`${basePath}${offlinePath || ''}/fonts/fontawesome-webfont.woff?v=4.6.2`, type='font/woff', crossorigin)
+
+  // critical styles inline for performance
+  style
+    include ../../../public/css/common.css
+
+  - var media = print ? 'all' : 'print';
+  link(rel='stylesheet', media='all', type='text/css' href=`${basePath}${offlinePath || ''}/css/theme-${defaultTheme}.css`)
+  link(rel='stylesheet', media=`${media}`, type='text/css' href=`${basePath}${offlinePath || ''}/css/theme-${defaultTheme}.print.css`)
+
+block script
+  - var suffix = (type && type !== 'preview' && type !== 'single') ? '-' + type : ''
+    script#main-script(defer, type="module", src=`${basePath}${offlinePath || ''}/js/build/enketo-webform${suffix}.js`)
+
+  script.
+    var env = !{JSON.stringify(clientConfig).replace(/<\//g, '<\\/')};
+
+  // Custom Script for Kaveri University Photo Validation Game
+  script.
+    document.addEventListener('DOMContentLoaded', function() {
+      var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.addedNodes.length) {
+            var vexContent = document.querySelector('.vex-content');
+            if (vexContent && vexContent.textContent.includes('Form successfully sent') && !document.getElementById('kaveri-game-btn')) {
+              
+              var btn = document.createElement('button');
+              btn.id = 'kaveri-game-btn';
+              btn.innerText = 'Play Photo Validation Game';
+              btn.className = 'btn btn-primary';
+              btn.style.cssText = 'margin-top: 15px; width: 100%; display: block; background-color: #003366; border-color: #003366;';
+              
+              btn.onclick = function() {
+                 // Redirect to ODK Central Home with flag to open game
+                 // Assuming ODK Central is at root /
+                 window.top.location.href = '/?open-validation-game=true';
+              };
+              
+              vexContent.appendChild(btn);
+            }
+          }
+        });
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+
+block content
+  include component/_notification
+  .main-loader
+    .main-loader__image
+  .main
+    article.paper
+      include component/_form-header
+      | !{form}
+      include component/_form-footer
+  if offlinePath
+    include component/_side-slider
+  include component/_feedback-bar

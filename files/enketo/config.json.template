@@ -8,7 +8,7 @@
         "api key": "${API_KEY}",
         "authentication": {
             "type": "cookie",
-            "url": "${BASE_URL}/login?next={RETURNURL}",
+            "url": "${BASE_URL}/v1/oidc/login?next={RETURNURL}",
             "allow insecure transport": "true"
         },
         "name": "ODK Central",

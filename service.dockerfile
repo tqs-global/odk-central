@@ -27,8 +27,8 @@ RUN mkdir /tmp/sentry-versions
 RUN git describe --tags --dirty > /tmp/sentry-versions/central
 WORKDIR /server
 RUN git describe --tags --dirty > /tmp/sentry-versions/server
-WORKDIR /client
-RUN git describe --tags --dirty > /tmp/sentry-versions/client
+# WORKDIR /client
+# RUN git describe --tags --dirty > /tmp/sentry-versions/client
 
 
 
